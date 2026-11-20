@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chia sẻ trải nghiệm lưu trú</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"></head>
+<body><div class="split">
+<section class="side">
+  <div class="side-top">
+    <img class="hotel-mark" src="/logo.png" alt="Logo khách sạn PT86">
+    <h2>Khách sạn PT86</h2>
+  </div>
+  <div class="side-copy">
+    <span class="eyebrow">Trải nghiệm lưu trú</span>
+    <h1>Kỳ nghỉ của bạn thế nào?</h1>
+    <p>Mỗi nhận xét được AI đọc, phân loại theo bộ phận và chuyển đến người phụ trách ngay trong ngày.</p>
+  </div>
+</section>
+<main class="pane">
+  <form id="f">
+    <h2>Đánh giá của bạn</h2>
+    <p class="mut">Chỉ mất khoảng một phút.</p>
+    <label class="f">Mức độ hài lòng</label>
+    <div class="stars" role="radiogroup" aria-label="Số sao">
+      <input type="radio" name="r" id="s5" value="5"><label for="s5" title="5 sao">★</label>
+      <input type="radio" name="r" id="s4" value="4"><label for="s4" title="4 sao">★</label>
+      <input type="radio" name="r" id="s3" value="3"><label for="s3" title="3 sao">★</label>
+      <input type="radio" name="r" id="s2" value="2"><label for="s2" title="2 sao">★</label>
+      <input type="radio" name="r" id="s1" value="1"><label for="s1" title="1 sao">★</label>
+    </div>
+    <label class="f" for="c">Bạn muốn chia sẻ điều gì?</label>
+    <textarea id="c" maxlength="2000" placeholder="Phòng ốc, nhân viên, bữa sáng, tiện nghi, giá cả…" required></textarea>
+    <div class="two">
+      <div><label class="f" for="n">Tên (không bắt buộc)</label><input id="n" maxlength="80" autocomplete="name"></div>
+      <div><label class="f" for="rm">Số phòng</label><input id="rm" maxlength="10"></div>
+    </div>
+    <p style="margin-top:22px"><button id="b">Gửi đánh giá</button></p>
+    <p class="msg err" id="m" role="alert"></p>
+  </form>
+  <div class="thanks" id="t" hidden><h2>Cảm ơn bạn đã chia sẻ.</h2><p>Đánh giá đã được ghi nhận. Hãy lưu liên kết riêng bên dưới để xem phản hồi sau này. Đừng chia sẻ liên kết này với người khác.</p><p><a class="button-link" id="track" href="/lookup">Theo dõi phản hồi</a> <button class="ghost" id="copy" type="button">Sao chép liên kết</button></p><button class="ghost" onclick="location.reload()">Gửi đánh giá khác</button></div>
+</main></div>
+<script>
+const $=s=>document.querySelector(s);
+$('#f').onsubmit=async e=>{e.preventDefault();$('#m').textContent='';
+ const r=document.querySelector('input[name=r]:checked');
+ if(!r){$('#m').textContent='Hãy chọn số sao trước khi gửi.';return}
+ $('#b').disabled=true;$('#b').textContent='Đang gửi…';
+ try{const x=await fetch('/api/feedback',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({rating:r.value,comment:$('#c').value,name:$('#n').value,room:$('#rm').value})});
+  const d=await x.json();if(!x.ok)throw new Error(d.error||'Gửi không thành công');
+  $('#track').href='/lookup?token='+encodeURIComponent(d.token);
+  $('#f').hidden=true;$('#t').hidden=false}
+ catch(err){$('#m').textContent=err.message+' Hãy thử lại.';$('#b').disabled=false;$('#b').textContent='Gửi đánh giá'}};
+$('#copy').onclick=async()=>{try{await navigator.clipboard.writeText(new URL($('#track').href,location.href).href);$('#copy').textContent='Đã sao chép'}catch{$('#m').textContent='Không thể sao chép tự động. Hãy mở liên kết theo dõi rồi lưu trang đó.'}};
+</script></body></html>

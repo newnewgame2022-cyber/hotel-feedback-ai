@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quản trị phản hồi</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"></head>
+<body>
+<div class="login" id="login"><h2>Đăng nhập quản trị</h2><p class="mut">Nhập khóa quản trị đã cài đặt (ADMIN_KEY).</p>
+ <input id="key" type="password" aria-label="Khóa quản trị" autocomplete="current-password"><p><button id="go">Đăng nhập</button></p><p class="msg err" id="err"></p></div>
+<div id="app" hidden>
+ <div class="bar"><h2>Bảng điều khiển phản hồi</h2><div><button class="ghost" id="seed">Nạp dữ liệu mẫu</button> <button class="ghost" id="out">Đăng xuất</button></div></div>
+ <div class="wrap">
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+   <div class="panel"><h3>Cảm xúc khách hàng</h3><div id="sent"></div><h3 style="margin-top:22px">Phân bố số sao</h3><div id="rat"></div></div>
+   <div class="panel"><h3>Chất lượng theo bộ phận</h3><p class="mut" style="margin:0 0 8px;font-size:14px">Xanh: nhận xét tốt. Đỏ: nhận xét chưa tốt.</p><div id="asp"></div></div>
+   <div class="panel"><h3>Điểm trung bình 14 ngày gần nhất (thang 5 điểm)</h3><div class="cols" id="trend"></div></div>
+  </div>
+  <div class="toolbar"><h3>Phản hồi gần đây</h3><span class="sp"></span>
+   <select id="fs" aria-label="Lọc cảm xúc"><option value="">Mọi cảm xúc</option><option value="positive">Tích cực</option><option value="neutral">Trung tính</option><option value="negative">Tiêu cực</option></select>
+   <select id="fst" aria-label="Lọc trạng thái"><option value="">Mọi trạng thái</option><option value="new">Mới</option><option value="progress">Đang xử lý</option><option value="resolved">Đã xử lý</option></select>
+   <button class="ghost" id="deleteMode" type="button">Chọn đánh giá để xóa</button></div>
+  <div class="toolbar delete-tools" id="deleteTools" hidden>
+   <label><input id="selectAll" type="checkbox"> Chọn tất cả đang hiển thị</label>
+   <span id="selectedCount" class="mut">0 đã chọn</span>
+   <button id="deleteSelected" type="button" disabled>Xóa đã chọn</button>
+   <button class="danger-button" id="deleteAll" type="button">Xóa tất cả</button>
+  </div>
+  <p class="msg err" id="notice" role="alert"></p>
+  <div id="list"></div>
+ </div>
+</div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const SENT={positive:'Tích cực',neutral:'Trung tính',negative:'Tiêu cực'},
+CAT={cleanliness:'Vệ sinh phòng',staff:'Nhân viên',food:'Ẩm thực',facilities:'Tiện nghi',location:'Vị trí',price:'Giá trị',checkin:'Check-in/out',noise:'Ồn và an ninh'},
+URG={low:'Ưu tiên thấp',medium:'Ưu tiên vừa',high:'Khẩn cấp'};
+let KEY=sessionStorage.getItem('k')||'';
+let SELECTING=false,TOTAL=0;
+const show=()=>{$('#login').hidden=!!KEY;$('#app').hidden=!KEY};
+const showError=err=>{$('#notice').textContent=err.message||'Không thể hoàn tất yêu cầu.'};
+async function api(p,o={}){const r=await fetch('/api/'+p,{...o,headers:{'content-type':'application/json','x-admin-key':KEY}});
+ if(r.status===401){KEY='';sessionStorage.removeItem('k');show();$('#err').textContent='Khóa quản trị chưa đúng hoặc chưa được cài đặt.';throw new Error('401')}
+ const d=await r.json();if(!r.ok)throw new Error(d.error||'Yêu cầu không thành công.');return d}
+function updateSelection(){
+ const checks=[...document.querySelectorAll('#list .pick-check')],selected=checks.filter(c=>c.checked).length;
+ $('#selectedCount').textContent=`${selected} đã chọn`;
+ $('#deleteSelected').disabled=!selected;
+ $('#selectAll').checked=checks.length>0&&selected===checks.length;
+ $('#selectAll').indeterminate=selected>0&&selected<checks.length;
+ $('#deleteAll').textContent=`Xóa tất cả (${TOTAL})`;
+ $('#deleteAll').disabled=TOTAL===0;
+}
+const bar=(l,v,max,c)=>`<div class=row><span>${l}</span><div class=track><i class="${c}" style="width:${max?v*100/max:0}%"></i></div><b>${v}</b></div>`;
+async function load(){
+ $('#notice').textContent='';
+ const q=new URLSearchParams({sentiment:$('#fs').value,status:$('#fst').value});
+ const [s,l]=await Promise.all([api('stats'),api('feedbacks?'+q)]);
+ const n=s.total||0;
+ TOTAL=n;
+ $('#kpis').innerHTML=`<div class=kpi><b>${n}</b>Tổng phản hồi</div><div class=kpi><b>${s.avg.toFixed(1)}/5</b>Điểm trung bình</div><div class=kpi><b>${n?Math.round(s.sent.positive*100/n):0}%</b>Phản hồi tích cực</div><div class="kpi warn"><b>${s.urgent}</b>Khẩn cấp chưa xử lý</div>`;
+ $('#sent').innerHTML=['positive','neutral','negative'].map(k=>bar(SENT[k],s.sent[k],n,k==='positive'?'pos':k==='neutral'?'neu':'neg')).join('');
+ $('#rat').innerHTML=[5,4,3,2,1].map(k=>bar(k+' sao',s.ratings[k]||0,n,'neu')).join('');
+ const ak=Object.keys(s.aspects),mx=Math.max(1,...ak.map(k=>s.aspects[k].positive+s.aspects[k].negative));
+ $('#asp').innerHTML=ak.length?ak.map(k=>{const a=s.aspects[k];return `<div class=row><span>${CAT[k]||k}</span><div class=track><i class=pos style="width:${a.positive*100/mx}%"></i><i class=neg style="width:${a.negative*100/mx}%"></i></div><b>${a.positive}/${a.negative}</b></div>`}).join(''):'<p class=mut>Chưa có dữ liệu. Chọn “Nạp dữ liệu mẫu” để xem thử.</p>';
+ $('#trend').innerHTML=s.trend.map(t=>`<div title="${t.d}: ${t.a.toFixed(1)} điểm/5 (${t.n} phản hồi)" style="height:${t.a*20}%"><small>${t.d.slice(5)}</small></div>`).join('');
+ $('#list').innerHTML=l.items.length?l.items.map(f=>{const as=JSON.parse(f.aspects||'{}');return `<article class="item ${f.sentiment}" data-id="${f.id}">
+ <label class=pick><input class=pick-check type=checkbox aria-label="Chọn đánh giá của ${esc(f.guest_name)}"></label>
+ <div><b>${esc(f.guest_name)}</b> <span class=mut>${f.room?'Phòng '+esc(f.room)+', ':''}${esc(f.created_at)}</span> <span class=gold>${'★'.repeat(f.rating)}${'☆'.repeat(5-f.rating)}</span></div>
+ <p>${esc(f.comment)}</p>
+ <div><span class="chip ${f.sentiment}">${SENT[f.sentiment]} (${f.score})</span><span class="chip ${f.urgency==='high'?'high':''}">${URG[f.urgency]}</span>${Object.entries(as).map(([k,v])=>`<span class="chip ${v}">${CAT[k]||esc(k)}</span>`).join('')}</div>
+ <div class=sum>Tóm tắt ${f.source==='ai'?'bởi AI':''}: ${esc(f.summary)}</div>
+ <div class=act><textarea placeholder="Nội dung phản hồi gửi khách…">${esc(f.reply)}</textarea><span class=mut>Phản hồi chỉ hiển thị với khách khi trạng thái là “Đã xử lý”.</span>
+ <div class=b><button class=ghost data-a=ai style="color:var(--ink)">${f.reply?'Soạn lại bằng AI':'Soạn phản hồi bằng AI'}</button>
+ <select aria-label="Trạng thái">${[['new','Mới'],['progress','Đang xử lý'],['resolved','Đã xử lý']].map(([v,t])=>`<option value=${v} ${f.status===v?'selected':''}>${t}</option>`).join('')}</select>
+ <button data-a=save>Lưu</button></div><p class="msg err" data-error role="alert"></p></div></article>`}).join(''):'<p class=mut>Không có phản hồi nào khớp bộ lọc.</p>';
+ updateSelection();
+}
+$('#list').onclick=async e=>{const b=e.target.closest('button');if(!b)return;const it=b.closest('.item'),id=it.dataset.id,label=b.textContent;
+ b.disabled=true;
+ try{
+  if(b.dataset.a==='ai'){b.textContent='Đang soạn…';const r=await api(`feedbacks/${id}/suggest`,{method:'POST'});it.querySelector('textarea').value=r.reply}
+  if(b.dataset.a==='save'){await api('feedbacks/'+id,{method:'PATCH',body:JSON.stringify({reply:it.querySelector('textarea').value,status:it.querySelector('select').value})});await load()}
+ }catch(err){it.querySelector('[data-error]').textContent=err.message||'Không thể hoàn tất yêu cầu.'}
+ finally{b.disabled=false;b.textContent=label}};
+$('#deleteMode').onclick=()=>{
+ SELECTING=!SELECTING;
+ $('#app').classList.toggle('selecting',SELECTING);
+ $('#deleteMode').textContent=SELECTING?'Thoát chế độ xóa':'Chọn đánh giá để xóa';
+ $('#deleteTools').hidden=!SELECTING;
+ if(!SELECTING)document.querySelectorAll('#list .pick-check').forEach(c=>c.checked=false);
+ updateSelection();
+};
+$('#list').onchange=e=>{if(e.target.matches('.pick-check'))updateSelection()};
+$('#selectAll').onchange=()=>{
+ document.querySelectorAll('#list .pick-check').forEach(c=>c.checked=$('#selectAll').checked);
+ updateSelection();
+};
+async function deleteFeedbacks(payload,message){
+ if(!confirm(message))return;
+ $('#deleteSelected').disabled=true;$('#deleteAll').disabled=true;
+ try{
+  const result=await api('feedbacks',{method:'DELETE',body:JSON.stringify(payload)});
+  SELECTING=false;$('#app').classList.remove('selecting');$('#deleteTools').hidden=true;
+  $('#deleteMode').textContent='Chọn đánh giá để xóa';
+  await load();
+  $('#notice').textContent=`Đã xóa ${result.deleted} đánh giá.`;
+ }catch(err){showError(err);updateSelection()}
+}
+$('#deleteSelected').onclick=()=>{
+ const ids=[...document.querySelectorAll('#list .pick-check:checked')].map(c=>Number(c.closest('.item').dataset.id));
+ if(ids.length)deleteFeedbacks({ids},`Xóa vĩnh viễn ${ids.length} đánh giá đã chọn? Không thể hoàn tác.`);
+};
+$('#deleteAll').onclick=()=>deleteFeedbacks({all:true},`Xóa vĩnh viễn toàn bộ ${TOTAL} đánh giá? Không thể hoàn tác.`);
+$('#go').onclick=()=>{KEY=$('#key').value.trim();sessionStorage.setItem('k',KEY);$('#err').textContent='';show();load().catch(showError)};
+$('#out').onclick=()=>{KEY='';sessionStorage.removeItem('k');show()};
+$('#seed').onclick=async()=>{$('#seed').disabled=true;try{await api('seed',{method:'POST'});await load()}catch(err){showError(err)}finally{$('#seed').disabled=false}};
+$('#fs').onchange=$('#fst').onchange=()=>load().catch(showError);
+show();if(KEY)load().catch(showError);
+</script></body></html>

@@ -1,0 +1,15 @@
+name = "hotel-feedback-ai"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hotel-feedback"
+database_id = "0b8a2638-23bb-4faa-a7e0-361c9c079a53"

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+<title>Tra cứu phản hồi</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css"></head>
+<body>
+<main class="lookup">
+  <section class="panel">
+    <h1>Tra cứu phản hồi</h1>
+    <p class="mut">Dùng mã trong liên kết riêng bạn nhận sau khi gửi đánh giá.</p>
+    <form id="form">
+      <label class="f" for="token">Mã tra cứu</label>
+      <input id="token" autocomplete="off" spellcheck="false" required>
+      <p><button id="submit">Tra cứu</button></p>
+      <p class="msg err" id="error" role="alert"></p>
+    </form>
+    <section class="reply-card" id="result" aria-live="polite" hidden>
+      <h2 id="title"></h2>
+      <p id="message"></p>
+      <blockquote id="reply" hidden></blockquote>
+    </section>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s),params=new URLSearchParams(location.search);
+const token=params.get('token');
+if(token)$('#token').value=token;
+$('#form').onsubmit=async e=>{
+ e.preventDefault();$('#error').textContent='';$('#result').hidden=true;
+ $('#submit').disabled=true;$('#submit').textContent='Đang tra cứu…';
+ try{
+  const r=await fetch('/api/feedback/lookup',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:$('#token').value})});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||'Không thể tra cứu phản hồi.');
+  $('#title').textContent=d.status==='resolved'?'Đánh giá đã được xử lý':'Đánh giá đang được xử lý';
+  $('#message').textContent=d.status==='new'?'Khách sạn đã nhận được đánh giá của bạn và sẽ phản hồi sớm.':d.status==='progress'?'Khách sạn đang xem xét đánh giá của bạn.':d.reply?'Phản hồi từ khách sạn:':'Đánh giá đã được xử lý.';
+  $('#reply').textContent=d.reply;$('#reply').hidden=!d.reply;$('#result').hidden=false;
+ }catch(err){$('#error').textContent=err.message}
+ finally{$('#submit').disabled=false;$('#submit').textContent='Tra cứu'}
+};
+</script></body></html>
